@@ -1800,6 +1800,10 @@
           <span id="cpam-inspection-run-id-caption" class="setting-caption">留空自动使用最新已完成巡检</span>
         </div>
       </div>
+      <div class="data-row">
+        <label class="data-label" for="input-cpam-reauth-replace-original-file">安全替换原文件</label>
+        <input id="input-cpam-reauth-replace-original-file" type="checkbox" checked />
+      </div>
       <div class="data-row cpam-reauth-actions">
         <span class="data-label">操作</span>
         <div class="data-inline">
@@ -1808,6 +1812,10 @@
         </div>
       </div>
       <p id="cpam-reauth-summary" class="setting-caption" aria-live="polite">未运行</p>
+      <div class="data-inline">
+        <button id="btn-retry-cpam-reauth" class="btn btn-outline btn-sm" type="button" disabled>重试 ReAuth（0）</button>
+        <button id="btn-delete-cpam-reauth-deactivated" class="btn btn-danger btn-sm" type="button" disabled>删除已停用账户（0）</button>
+      </div>
       <div id="cpam-reauth-results" class="cpam-reauth-results" hidden aria-live="polite"></div>
     </div>
     <div id="status-bar" class="status-bar">

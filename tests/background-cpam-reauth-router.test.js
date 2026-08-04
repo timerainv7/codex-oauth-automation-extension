@@ -382,6 +382,18 @@ test('STOP_CPAM_REAUTH delegates to the CPAM re-auth controller without locking 
   assert.deepEqual(events, [{ type: 'stop' }]);
 });
 
+test('CPAM ReAuth recovery actions delegate through the router', async () => {
+  const events = [];
+  const router = loadMessageRouterModule().createMessageRouter({
+    retryCpamReauthFailed: async () => { events.push('retry'); return { queued: 2 }; },
+    deleteCpamReauthDeactivated: async () => { events.push('delete'); return { queued: 2 }; },
+  });
+
+  assert.deepEqual(await router.handleMessage({ type: 'RETRY_CPAM_REAUTH_FAILED' }), { queued: 2 });
+  assert.deepEqual(await router.handleMessage({ type: 'DELETE_CPAM_REAUTH_DEACTIVATED' }), { queued: 2 });
+  assert.deepEqual(events, ['retry', 'delete']);
+});
+
 test('background wires CPAM modules, settings normalizers, runtime state, and router controller dependencies', () => {
   const source = fs.readFileSync('background.js', 'utf8');
   const routerIndex = source.indexOf("'background/message-router.js'");

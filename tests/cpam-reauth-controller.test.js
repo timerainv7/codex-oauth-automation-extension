@@ -159,6 +159,70 @@ test('start records a candidate failure and continues with later candidates', as
   assert.equal(summary.items[1].status, 'succeeded');
 });
 
+test('start safely replaces a generated CPA credential with the original 401 file name', async () => {
+  const state = stateHarness(validState({ cpamReauthReplaceOriginalFile: true }));
+  const calls = [];
+  const controller = createCpamReauthController({
+    getRunCandidates: async () => ({ candidates: [{ ...candidate('reauth@example.test', 'old'), accountId: 'account-1' }], skipped: [] }),
+    ...state,
+    clearOpenAiCookies: async () => {},
+    executeNode: async () => calls.push('oauth'),
+    listAuthFiles: async () => {
+      calls.push('list');
+      return calls.filter((call) => call === 'list').length === 1
+        ? [{ name: 'old.json', email: 'reauth@example.test' }]
+        : [{ name: 'old.json', email: 'reauth@example.test' }, { name: 'generated.json', email: 'reauth@example.test' }];
+    },
+    downloadAuthFile: async (runtimeState, fileName) => {
+      calls.push(`download:${fileName}`);
+      return { type: 'codex', email: 'reauth@example.test', access_token: 'secret' };
+    },
+    overwriteAuthFile: async (runtimeState, fileName, credential) => {
+      calls.push(`overwrite:${fileName}:${credential.email}`);
+    },
+    deleteAuthFile: async (runtimeState, fileName) => calls.push(`delete:${fileName}`),
+    broadcastDataUpdate: () => {},
+  });
+
+  const summary = await controller.start();
+
+  assert.equal(summary.succeeded, 1);
+  assert.deepEqual(calls, [
+    'list', 'oauth', 'oauth', 'oauth', 'oauth', 'oauth', 'list',
+    'download:generated.json', 'overwrite:old.json:reauth@example.test', 'delete:generated.json',
+  ]);
+  assert.equal(summary.items[0].replacement.status, 'replaced');
+  assert.equal(JSON.stringify(summary).includes('secret'), false);
+});
+
+test('CPAM ReAuth retries only non-deactivated failures and deletes only deactivated originals', async () => {
+  const state = stateHarness();
+  const executed = [];
+  const deleted = [];
+  const controller = createCpamReauthController({
+    getRunCandidates: async () => ({ candidates: [candidate('retry@example.test', 'retry'), candidate('gone@example.test', 'gone')], skipped: [] }),
+    ...state,
+    clearOpenAiCookies: async () => {},
+    executeNode: async (nodeId, payload) => {
+      executed.push(`${payload.reauthItem.email}:${nodeId}`);
+      if (payload.reauthItem.email === 'retry@example.test' && executed.length === 1) throw new Error('temporary network error');
+      if (payload.reauthItem.email === 'gone@example.test') throw new Error('ACCOUNT_DEACTIVATED');
+    },
+    deleteAuthFile: async (runtimeState, fileName) => deleted.push(fileName),
+    broadcastDataUpdate: () => {},
+  });
+  await controller.start();
+
+  const retry = await controller.retryFailed();
+  const deletion = await controller.deleteDeactivated();
+
+  assert.equal(retry.succeeded, 1);
+  assert.equal(retry.failed, 1);
+  assert.equal(retry.items.find((item) => item.email === 'retry@example.test').status, 'succeeded');
+  assert.deepEqual(deleted, ['gone.json']);
+  assert.equal(deletion.items.find((item) => item.email === 'gone@example.test').deleteStatus, 'deleted');
+});
+
 test('start records account deactivation at the node where it appears and continues the queue', async () => {
   const state = stateHarness();
   const controller = createCpamReauthController({

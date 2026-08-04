@@ -8,6 +8,7 @@ function createElement(value = '') {
   const listeners = new Map();
   return {
     value,
+    checked: false,
     disabled: false,
     textContent: '',
     attributes: {},
@@ -46,8 +47,11 @@ function createHarness(overrides = {}) {
     inputBaseUrl: createElement(' https://cpam.example.test/ '),
     inputAccessToken: createElement(' secret-token '),
     inputInspectionRunId: createElement(' 42 '),
+    inputReplaceOriginalFile: Object.assign(createElement(), { checked: true }),
     btnStart: createElement(),
     btnStop: createElement(),
+    btnRetry: createElement(),
+    btnDeleteDeactivated: createElement(),
     summary: createElement(),
     results: createElement(),
   };
@@ -59,6 +63,7 @@ function createHarness(overrides = {}) {
       sendMessage: async (message) => events.push({ type: 'message', message }),
     },
     helpers: {
+      ...(overrides.helpers || {}),
       saveSettings: overrides.saveSettings || (async () => events.push({ type: 'save' })),
     },
     ...overrides,
@@ -317,17 +322,40 @@ test('CPAM ReAuth panel collects and applies the persisted settings', () => {
     cpamBaseUrl: 'https://cpam.example.test/',
     cpamAccessToken: 'secret-token',
     cpamInspectionRunId: '42',
+    cpamReauthReplaceOriginalFile: true,
   });
 
   panel.applySettings({
     cpamBaseUrl: 'https://other.example.test',
     cpamAccessToken: 'new-token',
     cpamInspectionRunId: '7',
+    cpamReauthReplaceOriginalFile: false,
   });
 
   assert.equal(dom.inputBaseUrl.value, 'https://other.example.test');
   assert.equal(dom.inputAccessToken.value, 'new-token');
   assert.equal(dom.inputInspectionRunId.value, '7');
+  assert.equal(dom.inputReplaceOriginalFile.checked, false);
+});
+
+test('CPAM ReAuth panel dispatches terminal retry and confirmed deactivated deletion actions', async () => {
+  const { dom, events, panel } = createHarness({
+    helpers: {
+      saveSettings: async () => events.push({ type: 'save' }),
+      confirmDeleteDeactivated: async () => true,
+    },
+  });
+  panel.bindEvents();
+  panel.render({ phase: 'completed', items: [
+    { status: 'failed', email: 'retry@example.test', error: 'network' },
+    { status: 'failed', email: 'gone@example.test', error: '账号已被删除或停用（account_deactivated）' },
+  ] });
+  await dom.btnRetry.dispatch('click');
+  await dom.btnDeleteDeactivated.dispatch('click');
+  assert.deepEqual(events.filter((event) => event.type === 'message').map((event) => event.message.type), [
+    'RETRY_CPAM_REAUTH_FAILED',
+    'DELETE_CPAM_REAUTH_DEACTIVATED',
+  ]);
 });
 
 test('CPAM ReAuth panel locks active runtime controls and renders count-only summaries', () => {

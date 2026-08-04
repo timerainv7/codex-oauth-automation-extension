@@ -1,7 +1,7 @@
 (function attachCpamReauthPanel(root, factory) {
   root.SidepanelCpamReauth = factory();
 })(window, function createCpamReauthPanelModule() {
-  const ACTIVE_PHASES = new Set(['initializing', 'running', 'stopping']);
+  const ACTIVE_PHASES = new Set(['initializing', 'running', 'stopping', 'retrying', 'deleting']);
 
   function stringValue(input) {
     return String(input?.value || '').trim();
@@ -40,6 +40,9 @@
     const requestSave = typeof context.requestSave === 'function'
       ? context.requestSave
       : (typeof helpers.saveSettings === 'function' ? helpers.saveSettings : async () => {});
+    const confirmDeleteDeactivated = typeof helpers.confirmDeleteDeactivated === 'function'
+      ? helpers.confirmDeleteDeactivated
+      : async () => true;
     let eventsBound = false;
     let saveQueue = Promise.resolve();
     let startInFlight = false;
@@ -50,6 +53,7 @@
         cpamBaseUrl: stringValue(dom.inputBaseUrl),
         cpamAccessToken: stringValue(dom.inputAccessToken),
         cpamInspectionRunId: stringValue(dom.inputInspectionRunId),
+        cpamReauthReplaceOriginalFile: dom.inputReplaceOriginalFile?.checked !== false,
       };
     }
 
@@ -57,13 +61,14 @@
       if (dom.inputBaseUrl) dom.inputBaseUrl.value = String(state?.cpamBaseUrl || '');
       if (dom.inputAccessToken) dom.inputAccessToken.value = String(state?.cpamAccessToken || '');
       if (dom.inputInspectionRunId) dom.inputInspectionRunId.value = String(state?.cpamInspectionRunId || '');
+      if (dom.inputReplaceOriginalFile) dom.inputReplaceOriginalFile.checked = state?.cpamReauthReplaceOriginalFile !== false;
     }
 
     function render(runtimeState = {}) {
       lastRuntimeState = runtimeState || {};
       const phase = String(runtimeState?.phase || 'idle').trim().toLowerCase() || 'idle';
       const active = ACTIVE_PHASES.has(phase);
-      [dom.inputBaseUrl, dom.inputAccessToken, dom.inputInspectionRunId].forEach((input) => {
+      [dom.inputBaseUrl, dom.inputAccessToken, dom.inputInspectionRunId, dom.inputReplaceOriginalFile].forEach((input) => {
         if (input) input.disabled = active;
       });
       if (dom.btnStart) dom.btnStart.disabled = active || startInFlight;
@@ -88,6 +93,16 @@
 
       if (dom.results) {
         const items = Array.isArray(runtimeState?.items) ? runtimeState.items : [];
+        const retryable = items.filter((item) => item?.status === 'failed' && !/\baccount_deactivated\b/i.test(String(item?.error || '')));
+        const deletable = items.filter((item) => item?.status === 'failed' && /\baccount_deactivated\b/i.test(String(item?.error || '')) && item?.deleteStatus !== 'deleted');
+        if (dom.btnRetry) {
+          dom.btnRetry.textContent = `重试 ReAuth（${retryable.length}）`;
+          dom.btnRetry.disabled = active || !retryable.length;
+        }
+        if (dom.btnDeleteDeactivated) {
+          dom.btnDeleteDeactivated.textContent = `删除已停用账户（${deletable.length}）`;
+          dom.btnDeleteDeactivated.disabled = active || !deletable.length;
+        }
         if (active || !['completed', 'failed', 'stopped'].includes(phase)) {
           dom.results.hidden = true;
           dom.results.textContent = '';
@@ -190,10 +205,32 @@
       }
     }
 
+    async function dispatchTerminalAction(type) {
+      try {
+        const response = await runtime.sendMessage?.({ type, source: 'sidepanel', payload: {} });
+        if (response?.error) throw new Error(String(response.error));
+      } catch (error) {
+        if (dom.summary) dom.summary.textContent = runtimeErrorMessage(error);
+      }
+    }
+
+    async function retryFailed() {
+      await dispatchTerminalAction('RETRY_CPAM_REAUTH_FAILED');
+    }
+
+    async function deleteDeactivated() {
+      const items = Array.isArray(lastRuntimeState?.items) ? lastRuntimeState.items : [];
+      const count = items.filter((item) => item?.status === 'failed' && /\baccount_deactivated\b/i.test(String(item?.error || '')) && item?.deleteStatus !== 'deleted').length;
+      if (!count) return;
+      if (await confirmDeleteDeactivated(count)) {
+        await dispatchTerminalAction('DELETE_CPAM_REAUTH_DEACTIVATED');
+      }
+    }
+
     function bindEvents() {
       if (eventsBound) return;
       eventsBound = true;
-      [dom.inputBaseUrl, dom.inputAccessToken, dom.inputInspectionRunId].forEach((input) => {
+      [dom.inputBaseUrl, dom.inputAccessToken, dom.inputInspectionRunId, dom.inputReplaceOriginalFile].forEach((input) => {
         input?.addEventListener('input', () => {
           if (startInFlight) return;
           queueInputSave().catch(() => {});
@@ -201,6 +238,8 @@
       });
       dom.btnStart?.addEventListener('click', () => start());
       dom.btnStop?.addEventListener('click', () => stop());
+      dom.btnRetry?.addEventListener('click', () => retryFailed());
+      dom.btnDeleteDeactivated?.addEventListener('click', () => deleteDeactivated());
     }
 
     return {

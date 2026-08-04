@@ -59,8 +59,11 @@ const inputPassword = document.getElementById('input-password');
 const inputCpamBaseUrl = document.getElementById('input-cpam-base-url');
 const inputCpamAccessToken = document.getElementById('input-cpam-access-token');
 const inputCpamInspectionRunId = document.getElementById('input-cpam-inspection-run-id');
+const inputCpamReauthReplaceOriginalFile = document.getElementById('input-cpam-reauth-replace-original-file');
 const btnStartCpamReauth = document.getElementById('btn-start-cpam-reauth');
 const btnStopCpamReauth = document.getElementById('btn-stop-cpam-reauth');
+const btnRetryCpamReauth = document.getElementById('btn-retry-cpam-reauth');
+const btnDeleteCpamReauthDeactivated = document.getElementById('btn-delete-cpam-reauth-deactivated');
 const cpamReauthSummary = document.getElementById('cpam-reauth-summary');
 const cpamReauthResults = document.getElementById('cpam-reauth-results');
 const btnToggleVpsUrl = document.getElementById('btn-toggle-vps-url');
@@ -11863,13 +11866,22 @@ const cpamReauthPanel = window.SidepanelCpamReauth?.createCpamReauthPanel?.({
     inputBaseUrl: inputCpamBaseUrl,
     inputAccessToken: inputCpamAccessToken,
     inputInspectionRunId: inputCpamInspectionRunId,
+    inputReplaceOriginalFile: inputCpamReauthReplaceOriginalFile,
     btnStart: btnStartCpamReauth,
     btnStop: btnStopCpamReauth,
+    btnRetry: btnRetryCpamReauth,
+    btnDeleteDeactivated: btnDeleteCpamReauthDeactivated,
     summary: cpamReauthSummary,
     results: cpamReauthResults,
   },
   runtime: chrome.runtime,
   helpers: {
+    confirmDeleteDeactivated: async (count) => openConfirmModal({
+      title: '删除已停用账户',
+      message: `确认删除本次 ReAuth 中已停用的 ${count} 个 CPA 认证文件吗？此操作不可恢复。`,
+      confirmLabel: '确认删除',
+      confirmVariant: 'btn-danger',
+    }),
     saveSettings: () => {
       markSettingsDirty(true);
       return saveSettings({ silent: true, force: true, source: 'cpam-reauth' });

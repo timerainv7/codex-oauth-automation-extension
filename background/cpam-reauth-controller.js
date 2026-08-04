@@ -70,6 +70,13 @@
     const getStopRequested = typeof deps.getStopRequested === 'function' ? deps.getStopRequested : null;
     const clearStopRequest = typeof deps.clearStopRequest === 'function' ? deps.clearStopRequest : async () => {};
     const addLog = typeof deps.addLog === 'function' ? deps.addLog : null;
+    const listAuthFiles = typeof deps.listAuthFiles === 'function' ? deps.listAuthFiles : null;
+    const downloadAuthFile = typeof deps.downloadAuthFile === 'function' ? deps.downloadAuthFile : null;
+    const overwriteAuthFile = typeof deps.overwriteAuthFile === 'function' ? deps.overwriteAuthFile : null;
+    const deleteAuthFile = typeof deps.deleteAuthFile === 'function' ? deps.deleteAuthFile : null;
+    const sleep = typeof deps.sleep === 'function'
+      ? deps.sleep
+      : (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
     const chromeApi = deps.chrome;
 
     let localStopRequested = false;
@@ -222,7 +229,64 @@
       }
     }
 
+    function normalizeEmail(value = '') {
+      return String(value || '').trim().toLowerCase();
+    }
+
+    function findGeneratedAuthFile(files, item, baselineNames) {
+      const email = normalizeEmail(item?.email);
+      const accountId = String(item?.accountId || '').trim();
+      return (Array.isArray(files) ? files : []).find((file) => {
+        const name = String(file?.name || '').trim();
+        if (!name || name === item?.fileName || baselineNames.has(name)) return false;
+        const fileEmail = normalizeEmail(file?.email);
+        const fileAccountId = String(file?.id_token?.chatgpt_account_id || '').trim();
+        return Boolean((email && fileEmail === email) || (accountId && fileAccountId === accountId));
+      }) || null;
+    }
+
+    function createReauthStepError(message, step) {
+      const error = new Error(message);
+      error.reauthStep = step;
+      return error;
+    }
+
+    async function safelyReplaceOriginalAuthFile(state, item, baselineNames) {
+      if (!listAuthFiles || !downloadAuthFile || !overwriteAuthFile || !deleteAuthFile) {
+        throw createReauthStepError('CPA 文件替换功能不可用。', 'cpa-file-replace');
+      }
+      let generated = null;
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        generated = findGeneratedAuthFile(await listAuthFiles(state), item, baselineNames);
+        if (generated) break;
+        if (attempt < 9) await sleep(1000);
+      }
+      if (!generated) {
+        throw createReauthStepError('CPA 文件替换未找到新的认证文件。', 'cpa-file-replace');
+      }
+      const generatedName = String(generated.name || '').trim();
+      try {
+        const credential = await downloadAuthFile(state, generatedName);
+        await overwriteAuthFile(state, item.fileName, credential);
+        await deleteAuthFile(state, generatedName);
+      } catch (error) {
+        throw createReauthStepError(`CPA 文件替换失败：${safeErrorMessage(error)}`, 'cpa-file-replace');
+      }
+      return { status: 'replaced', generatedFileName: generatedName };
+    }
+
     async function executeCandidate(item) {
+      const initialState = await getState();
+      const replaceOriginalFile = initialState?.cpamReauthReplaceOriginalFile === true;
+      let baselineNames = null;
+      if (replaceOriginalFile) {
+        if (!listAuthFiles) {
+          throw createReauthStepError('CPA 文件替换功能不可用。', 'cpa-file-replace');
+        }
+        baselineNames = new Set((await listAuthFiles(initialState))
+          .map((file) => String(file?.name || '').trim())
+          .filter(Boolean));
+      }
       await clearOpenAiCookies();
       if (await stopRequested()) return 'stopped';
 
@@ -257,6 +321,9 @@
           throw nodeError;
         }
       }
+      if (replaceOriginalFile) {
+        item.replacement = await safelyReplaceOriginalAuthFile(await getState(), item, baselineNames);
+      }
       return 'succeeded';
     }
 
@@ -268,6 +335,19 @@
         skipped: runtime.skipped,
         items: clone(runtime.items),
       };
+    }
+
+    function isDeactivatedItem(item) {
+      return item?.status === 'failed' && /\baccount_deactivated\b/i.test(String(item?.error || ''));
+    }
+
+    function recount(items) {
+      return (Array.isArray(items) ? items : []).reduce((counts, item) => {
+        if (item?.status === 'succeeded') counts.succeeded += 1;
+        else if (item?.status === 'failed') counts.failed += 1;
+        else if (item?.status === 'skipped') counts.skipped += 1;
+        return counts;
+      }, { succeeded: 0, failed: 0, skipped: 0 });
     }
 
     function markPendingItemsStopped(items) {
@@ -396,7 +476,7 @@
               break;
             }
             const items = clone(runtime.items);
-            items[index] = { ...items[index], status: 'succeeded', error: null };
+            items[index] = { ...items[index], status: 'succeeded', error: null, ...(item.replacement ? { replacement: item.replacement } : {}) };
             await persistRuntime({ items, succeeded: runtime.succeeded + 1 });
             await log(`CPAM ReAuth completed for ${item.email}.`);
           } catch (error) {
@@ -441,6 +521,66 @@
       return makeSummary();
     }
 
+    async function retryFailed() {
+      if (running || initializing) throw new Error('CPAM ReAuth 正在运行，暂不能重试。');
+      const retryIndexes = runtime.items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => item?.status === 'failed' && !isDeactivatedItem(item))
+        .sort((left, right) => Number(left.item?.position ?? left.index) - Number(right.item?.position ?? right.index));
+      if (!retryIndexes.length) return makeSummary();
+      running = true;
+      await persistRuntime({ phase: 'retrying', currentItem: null, error: null });
+      try {
+        for (const { item, index } of retryIndexes) {
+          await persistRuntime({ currentIndex: index, currentItem: clone(item) });
+          try {
+            const result = await executeCandidate(item);
+            const items = clone(runtime.items);
+            if (result === 'stopped') break;
+            items[index] = { ...items[index], status: 'succeeded', error: null, step: null, ...(item.replacement ? { replacement: item.replacement } : {}) };
+            await persistRuntime({ items, ...recount(items) });
+          } catch (error) {
+            const items = clone(runtime.items);
+            items[index] = { ...items[index], status: 'failed', ...normalizeReauthFailure(error) };
+            await persistRuntime({ items, ...recount(items) });
+          }
+        }
+        await persistRuntime({ phase: 'completed', currentItem: null });
+        return makeSummary();
+      } finally {
+        running = false;
+      }
+    }
+
+    async function deleteDeactivated() {
+      if (running || initializing) throw new Error('CPAM ReAuth 正在运行，暂不能删除。');
+      if (!deleteAuthFile) throw new Error('CPA 文件删除功能不可用。');
+      const targets = runtime.items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => isDeactivatedItem(item) && item?.deleteStatus !== 'deleted' && String(item?.fileName || '').trim());
+      if (!targets.length) return makeSummary();
+      running = true;
+      await persistRuntime({ phase: 'deleting', currentItem: null, error: null });
+      try {
+        const state = await getState();
+        for (const { item, index } of targets) {
+          await persistRuntime({ currentIndex: index, currentItem: clone(item) });
+          const items = clone(runtime.items);
+          try {
+            await deleteAuthFile(state, item.fileName);
+            items[index] = { ...items[index], deleteStatus: 'deleted', deleteError: null };
+          } catch (error) {
+            items[index] = { ...items[index], deleteStatus: 'failed', deleteError: safeErrorMessage(error) };
+          }
+          await persistRuntime({ items });
+        }
+        await persistRuntime({ phase: 'completed', currentItem: null });
+        return makeSummary();
+      } finally {
+        running = false;
+      }
+    }
+
     function getRuntimeState() {
       return clone(runtime);
     }
@@ -448,6 +588,8 @@
     return {
       start,
       stop,
+      retryFailed,
+      deleteDeactivated,
       getRuntimeState,
       clearOpenAiCookies,
     };
