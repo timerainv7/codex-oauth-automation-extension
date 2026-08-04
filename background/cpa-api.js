@@ -52,6 +52,25 @@
       return parsed.origin;
     }
 
+    function normalizeAuthFileName(value = '') {
+      const name = normalizeString(value);
+      if (!name || !name.toLowerCase().endsWith('.json') || /[\\/]/.test(name)) {
+        throw new Error('CPA 认证文件名无效。');
+      }
+      return name;
+    }
+
+    function getCpaManagementContext(state = {}) {
+      const managementKey = normalizeString(state?.vpsPassword);
+      if (!managementKey) {
+        throw new Error('尚未配置 CPA 管理密钥，请先在侧边栏填写。');
+      }
+      return {
+        managementKey,
+        origin: deriveCpaManagementOrigin(state?.vpsUrl),
+      };
+    }
+
     function getCpaApiErrorMessage(payload, responseStatus = 500) {
       const candidates = [
         payload?.error,
@@ -459,6 +478,53 @@
       };
     }
 
+    async function listAuthFiles(state = {}, options = {}) {
+      const { managementKey, origin } = getCpaManagementContext(state);
+      const payload = await fetchCpaManagementJson(origin, '/v0/management/auth-files', {
+        method: 'GET',
+        managementKey,
+        timeoutMs: options.timeoutMs,
+      });
+      if (!Array.isArray(payload?.files)) {
+        throw new Error('CPA 认证文件列表响应无效。');
+      }
+      return payload.files;
+    }
+
+    async function downloadAuthFile(state = {}, fileName, options = {}) {
+      const { managementKey, origin } = getCpaManagementContext(state);
+      const name = normalizeAuthFileName(fileName);
+      return fetchCpaManagementJson(origin, `/v0/management/auth-files/download?name=${encodeURIComponent(name)}`, {
+        method: 'GET',
+        managementKey,
+        timeoutMs: options.timeoutMs,
+      });
+    }
+
+    async function overwriteAuthFile(state = {}, fileName, credential, options = {}) {
+      const { managementKey, origin } = getCpaManagementContext(state);
+      const name = normalizeAuthFileName(fileName);
+      if (!isPlainObject(credential)) {
+        throw new Error('CPA 认证文件内容无效。');
+      }
+      return fetchCpaManagementJson(origin, `/v0/management/auth-files?name=${encodeURIComponent(name)}`, {
+        method: 'POST',
+        managementKey,
+        timeoutMs: options.timeoutMs,
+        body: credential,
+      });
+    }
+
+    async function deleteAuthFile(state = {}, fileName, options = {}) {
+      const { managementKey, origin } = getCpaManagementContext(state);
+      const name = normalizeAuthFileName(fileName);
+      return fetchCpaManagementJson(origin, `/v0/management/auth-files?name=${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        managementKey,
+        timeoutMs: options.timeoutMs,
+      });
+    }
+
     async function importCurrentChatGptSession(state = {}, options = {}) {
       const logLabel = normalizeString(options.logLabel) || 'CPA 会话导入';
       const managementKey = normalizeString(state?.vpsPassword);
@@ -493,9 +559,13 @@
 
     return {
       buildCpaSessionAuthJson,
+      deleteAuthFile,
       deriveCpaManagementOrigin,
+      downloadAuthFile,
       fetchCpaManagementJson,
       importCurrentChatGptSession,
+      listAuthFiles,
+      overwriteAuthFile,
       requestOAuthUrl,
       submitOAuthCallback,
     };
