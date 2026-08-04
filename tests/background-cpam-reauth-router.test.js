@@ -233,6 +233,7 @@ test('background CPAM inspection wiring creates one API instance and delegates c
 
 test('generic persistent settings normalize CPAM values for saving', () => {
   const source = fs.readFileSync('background.js', 'utf8');
+  const normalizedRunIds = [];
   const api = new Function('self', `
 const PERSISTED_SETTING_DEFAULTS = {
   cpamBaseUrl: '',
@@ -250,7 +251,10 @@ return { buildPersistentSettingsPayload };
 `)({
     MultiPageBackgroundCpamInspectionApi: {
       normalizeBaseUrl: (value) => `normalized:${value.trim()}`,
-      normalizeRunId: (value) => `run:${value.trim()}`,
+      normalizeRunId: (value) => {
+        normalizedRunIds.push(value);
+        return `run:${value.trim()}`;
+      },
     },
   });
 
@@ -263,6 +267,15 @@ return { buildPersistentSettingsPayload };
     cpamAccessToken: 'token',
     cpamInspectionRunId: 'run:42',
   });
+  assert.deepEqual(normalizedRunIds, ['42']);
+
+  assert.deepEqual(api.buildPersistentSettingsPayload({ cpamInspectionRunId: '' }), {
+    cpamInspectionRunId: '',
+  });
+  assert.deepEqual(api.buildPersistentSettingsPayload({ cpamInspectionRunId: '   ' }), {
+    cpamInspectionRunId: '',
+  });
+  assert.deepEqual(normalizedRunIds, ['42']);
 });
 
 test('setState diagnostics redact CPAM access tokens before logging updates', async () => {
