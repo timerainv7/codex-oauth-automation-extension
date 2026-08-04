@@ -114,7 +114,7 @@
 
     function hasRequiredSettings() {
       const settings = collectSettings();
-      return Boolean(settings.cpamBaseUrl && settings.cpamAccessToken && settings.cpamInspectionRunId);
+      return Boolean(settings.cpamBaseUrl && settings.cpamAccessToken);
     }
 
     function updateStartButtonState() {
@@ -145,7 +145,7 @@
     async function start() {
       if (startInFlight) return;
       if (!hasRequiredSettings()) {
-        if (dom.summary) dom.summary.textContent = '请填写 CPAM 地址、访问令牌和检查运行 ID。';
+        if (dom.summary) dom.summary.textContent = '请填写 CPAM 地址和访问令牌。';
         return;
       }
       const runtimeBeforeStart = lastRuntimeState;

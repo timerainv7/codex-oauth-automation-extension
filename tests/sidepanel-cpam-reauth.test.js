@@ -81,6 +81,22 @@ test('CPAM ReAuth panel saves settings before sending its start message', async 
   ]);
 });
 
+test('CPAM ReAuth panel starts with a blank inspection run ID', async () => {
+  const { dom, events, panel } = createHarness();
+  dom.inputInspectionRunId.value = '   ';
+  panel.bindEvents();
+
+  await dom.btnStart.dispatch('click');
+
+  assert.deepEqual(events, [
+    { type: 'save' },
+    {
+      type: 'message',
+      message: { type: 'START_CPAM_REAUTH', source: 'sidepanel', payload: {} },
+    },
+  ]);
+});
+
 test('CPAM ReAuth panel sends a stop message and input changes save without logging', async () => {
   const { dom, events, panel } = createHarness();
   panel.bindEvents();
@@ -105,7 +121,7 @@ test('CPAM ReAuth panel does not start with missing local settings', async () =>
   await dom.btnStart.dispatch('click');
 
   assert.deepEqual(events, []);
-  assert.equal(dom.summary.textContent, '请填写 CPAM 地址、访问令牌和检查运行 ID。');
+  assert.equal(dom.summary.textContent, '请填写 CPAM 地址和访问令牌。');
 });
 
 test('CPAM ReAuth panel does not start when saving settings fails and shows a save error', async () => {
@@ -387,7 +403,12 @@ test('CPAM ReAuth markup and sidepanel integration expose no external link and a
   assert.match(card, /id="input-cpam-base-url"[^>]*type="url"/);
   assert.match(card, /id="input-cpam-base-url"[^>]*autocomplete="off"/);
   assert.match(card, /id="input-cpam-access-token"[^>]*type="password"/);
+  assert.match(card, /检查运行 ID（可选）/);
   assert.match(card, /id="input-cpam-inspection-run-id"[^>]*type="number"[^>]*min="1"[^>]*step="1"/);
+  assert.ok(
+    card.indexOf('id="input-cpam-inspection-run-id"') < card.indexOf('留空自动使用最新已完成巡检'),
+    'the automatic-selection caption should follow the inspection run ID field'
+  );
   assert.doesNotMatch(card.match(/<button id="btn-start-cpam-reauth"[^>]*>/)[0], /\sdisabled(?:[\s=>]|$)/);
   assert.match(card, /id="btn-stop-cpam-reauth"[^>]*disabled/);
   assert.match(card, /<button id="btn-stop-cpam-reauth" class="btn btn-danger btn-sm"[^>]*>/);
