@@ -48,25 +48,12 @@ function extractFunction(name) {
   return sidepanelSource.slice(start, end);
 }
 
-test('sidepanel html exposes header repo and releases entry points', () => {
+test('registration-only sidepanel excludes header repo and release entry points', () => {
   const html = fs.readFileSync('sidepanel/sidepanel.html', 'utf8');
 
-  assert.match(
-    html,
-    /id="link-repo-home"[\s\S]*class="header-icon-link"[\s\S]*title="打开 GitHub 仓库"/
-  );
-  assert.match(
-    html,
-    /id="link-repo-home"[\s\S]*<svg[\s\S]*aria-hidden="true"[\s\S]*<\/svg>/
-  );
-  assert.doesNotMatch(
-    html,
-    /id="link-repo-home"[^>]*\bbtn\b/
-  );
-  assert.match(
-    html,
-    /id="extension-update-status"[\s\S]*title="打开 GitHub Releases 页面"/
-  );
+  assert.doesNotMatch(html, /id="link-repo-home"/);
+  assert.doesNotMatch(html, /id="extension-update-status"/);
+  assert.doesNotMatch(html, /id="btn-release-log"/);
 });
 
 test('header link helpers resolve repo and releases urls', () => {

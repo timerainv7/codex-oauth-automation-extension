@@ -5,37 +5,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FlowPilot</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-    rel="stylesheet">
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 
 <body>
   <header>
     <div class="header-left">
-      <a id="link-repo-home" class="header-icon-link" href="https://github.com/QLHazyCoder/FlowPilot"
-        target="_blank" rel="noopener noreferrer" aria-label="打开 GitHub 仓库" title="打开 GitHub 仓库">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-        </svg>
-      </a>
       <div class="header-version-block">
         <div class="header-version-main">
-          <button id="extension-update-status" class="header-version-title header-version-link" type="button"
-          aria-label="打开 GitHub Releases 页面" title="打开 GitHub Releases 页面">FlowPilot0.0</button>
-          <button id="btn-release-log" class="header-link-btn" type="button" hidden>更新日志</button>
+          <span class="header-version-title">FlowPilot</span>
         </div>
-        <span id="extension-version-meta" class="header-version-meta" hidden></span>
       </div>
     </div>
     <div class="header-btns">
       <div class="run-group">
-        <button id="btn-contribution-mode" class="btn btn-outline btn-sm btn-contribution-mode" type="button"
-          aria-pressed="false" title="进入贡献模式并打开官网页">贡献/使用教程</button>
         <input type="number" id="input-run-count" class="run-count-input" value="1" min="1" title="运行次数" />
         <button id="btn-auto-run" class="btn btn-success" title="自动执行全部步骤">自动</button>
         <button id="btn-stop" class="btn btn-danger" title="停止当前流程" disabled>停止</button>
@@ -63,45 +46,6 @@
     </div>
   </header>
 
-  <div id="auto-run-ad-bar" class="auto-run-ad-bar" hidden aria-live="polite">
-    <span class="auto-run-ad-badge">作者自营</span>
-    <div id="auto-run-ad-viewport" class="auto-run-ad-viewport">
-      <div id="auto-run-ad-track" class="auto-run-ad-track">
-        <span id="auto-run-ad-text" class="auto-run-ad-text"></span>
-        <span id="auto-run-ad-text-clone" class="auto-run-ad-text auto-run-ad-text--clone" aria-hidden="true"></span>
-      </div>
-    </div>
-    <span class="auto-run-ad-badge auto-run-ad-badge--end">售后保障</span>
-  </div>
-
-  <div id="contribution-update-layer" class="contribution-update-layer" hidden>
-    <div id="contribution-update-hint" class="contribution-update-hint" aria-live="polite" hidden>
-      <p id="contribution-update-hint-text" class="contribution-update-hint-text">
-        公告 / 使用教程有更新了，可点上方“贡献/使用教程”查看。
-      </p>
-      <button id="btn-dismiss-contribution-update-hint" class="contribution-update-hint-close" type="button"
-        aria-label="关闭更新提示" title="关闭更新提示">×</button>
-    </div>
-  </div>
-
-  <section id="update-section" hidden>
-    <div class="update-card">
-      <div class="update-card-header">
-        <div class="update-card-copy">
-          <span class="section-label">更新内容</span>
-          <div id="update-card-version" class="update-card-version"></div>
-          <p id="update-card-summary" class="update-card-summary"></p>
-        </div>
-        <div class="update-card-actions">
-          <button id="btn-ignore-release" class="btn btn-outline btn-sm" type="button" hidden>忽略本次更新</button>
-          <button id="btn-open-release" class="btn btn-primary btn-sm" type="button">前往更新</button>
-        </div>
-      </div>
-      <p class="update-card-reminder">一定请先导出配置，再执行更新</p>
-      <div id="update-release-list" class="update-release-list"></div>
-    </div>
-  </section>
-
   <section id="data-section">
     <div id="settings-card" class="data-card">
       <div class="data-row" id="row-flow-selector">
@@ -120,8 +64,6 @@
             <option value="sub2api">SUB2API</option>
             <option value="codex2api">Codex2API</option>
           </select>
-          <button id="btn-open-target-repository" class="btn btn-outline btn-sm data-inline-btn" type="button"
-            aria-label="打开项目 GitHub 仓库" title="打开项目 GitHub 仓库">GitHub</button>
         </div>
       </div>
       <div class="data-row" id="row-account-delivery-mode" style="display:none;">
@@ -129,39 +71,6 @@
         <div class="setting-field-stack">
           <select id="select-account-delivery-mode" class="data-select" aria-label="账号交付方式"></select>
           <span class="setting-caption" id="account-delivery-mode-caption"></span>
-        </div>
-      </div>
-        <div id="contribution-mode-panel" class="contribution-mode-panel" hidden>
-          <div class="contribution-mode-panel-header">
-            <span class="section-label">贡献模式</span>
-            <span id="contribution-mode-badge" class="contribution-mode-badge">CPA</span>
-          </div>
-        <p id="contribution-mode-text" class="contribution-mode-text">
-          当前账号将用于支持项目维护。扩展会自动申请贡献登录地址并持续跟踪授权状态；如检测到回调地址，会自动提交，无需手动复制。</p>
-        <div class="data-row contribution-mode-field">
-          <span class="data-label">贡献昵称</span>
-          <input type="text" id="input-contribution-nickname" class="data-input" placeholder="可留空，将显示为匿名贡献者" />
-        </div>
-        <div class="data-row contribution-mode-field">
-          <span class="data-label">QQ</span>
-          <input type="text" id="input-contribution-qq" class="data-input" inputmode="numeric"
-            placeholder="可留空，只能填写数字" />
-        </div>
-        <div class="contribution-mode-status-grid">
-          <div class="contribution-mode-status-card">
-            <span id="contribution-primary-status-label" class="contribution-mode-status-label">OAUTH</span>
-            <span id="contribution-oauth-status" class="contribution-mode-status-value">未生成登录地址</span>
-          </div>
-          <div class="contribution-mode-status-card">
-            <span id="contribution-secondary-status-label" class="contribution-mode-status-label">回调</span>
-            <span id="contribution-callback-status" class="contribution-mode-status-value">等待回调</span>
-          </div>
-        </div>
-        <div id="contribution-mode-summary" class="contribution-mode-summary">等待开始贡献</div>
-        <div class="contribution-mode-actions">
-          <button id="btn-start-contribution" class="btn btn-primary btn-sm" type="button">开始贡献</button>
-          <button id="btn-open-contribution-upload" class="btn btn-outline btn-sm" type="button">已有认证文件？前往上传</button>
-          <button id="btn-exit-contribution-mode" class="btn btn-ghost btn-sm" type="button">退出贡献模式</button>
         </div>
       </div>
       <div class="data-row" id="row-vps-url">
@@ -746,10 +655,6 @@
         <div class="section-mini-copy">
           <span class="section-label">Cloudflare Temp Email</span>
           <span class="data-value">用于生成邮箱或接收转发邮件</span>
-        </div>
-        <div class="section-mini-actions">
-          <button id="btn-cloudflare-temp-email-usage-guide" class="btn btn-ghost btn-xs" type="button">使用教程</button>
-          <button id="btn-cloudflare-temp-email-github" class="btn btn-ghost btn-xs" type="button">部署</button>
         </div>
       </div>
       <div class="data-row" id="row-temp-email-base-url" style="display:none;">
@@ -1872,6 +1777,47 @@
         </div>
       </div>
     </div>
+    <div id="cpam-reauth-section" class="data-card cpam-reauth-card">
+      <div class="section-mini-header">
+        <div class="section-mini-copy">
+          <span class="section-label">CPAM ReAuth</span>
+          <span class="data-value">批量重新授权 CPAM 检查任务中的账号</span>
+        </div>
+      </div>
+      <div class="data-row">
+        <span class="data-label">CPAM 地址</span>
+        <input id="input-cpam-base-url" class="data-input" type="url" placeholder="https://cpam.example.com" autocomplete="off" />
+      </div>
+      <div class="data-row">
+        <span class="data-label">访问令牌</span>
+        <input id="input-cpam-access-token" class="data-input" type="password" autocomplete="off" />
+      </div>
+      <div class="data-row">
+        <label class="data-label" for="input-cpam-inspection-run-id">检查运行 ID（可选）</label>
+        <div class="setting-field-stack">
+          <input id="input-cpam-inspection-run-id" class="data-input" type="number" min="1" step="1"
+            aria-describedby="cpam-inspection-run-id-caption" />
+          <span id="cpam-inspection-run-id-caption" class="setting-caption">留空自动使用最新已完成巡检</span>
+        </div>
+      </div>
+      <div class="data-row">
+        <label class="data-label" for="input-cpam-reauth-replace-original-file">安全替换原文件</label>
+        <input id="input-cpam-reauth-replace-original-file" type="checkbox" checked />
+      </div>
+      <div class="data-row cpam-reauth-actions">
+        <span class="data-label">操作</span>
+        <div class="data-inline">
+          <button id="btn-start-cpam-reauth" class="btn btn-primary btn-sm" type="button">开始重新授权</button>
+          <button id="btn-stop-cpam-reauth" class="btn btn-danger btn-sm" type="button" disabled>停止</button>
+        </div>
+      </div>
+      <p id="cpam-reauth-summary" class="setting-caption" aria-live="polite">未运行</p>
+      <div class="data-inline">
+        <button id="btn-retry-cpam-reauth" class="btn btn-outline btn-sm" type="button" disabled>重试 ReAuth（0）</button>
+        <button id="btn-delete-cpam-reauth-deactivated" class="btn btn-danger btn-sm" type="button" disabled>删除已停用账户（0）</button>
+      </div>
+      <div id="cpam-reauth-results" class="cpam-reauth-results" hidden aria-live="polite"></div>
+    </div>
     <div id="status-bar" class="status-bar">
       <div class="status-dot"></div>
       <span id="display-status">就绪</span>
@@ -2012,7 +1958,6 @@
   <script src="../flows/grok/workflow.js"></script>
   <script src="../flows/index.js"></script>
   <script src="../core/flow-kernel/flow-registry.js"></script>
-  <script src="../shared/contribution-registry.js"></script>
   <script src="../shared/i18n/catalog.js"></script>
   <script src="../shared/i18n/runtime.js"></script>
   <script src="i18n-static.js"></script>
@@ -2020,8 +1965,6 @@
   <script src="../core/flow-kernel/flow-capabilities.js"></script>
   <script src="account-delivery-control.js"></script>
   <script src="../data/step-definitions.js"></script>
-  <script src="update-service.js"></script>
-  <script src="contribution-content-update-service.js"></script>
   <script src="account-pool-ui.js"></script>
   <script src="form-dialog.js"></script>
   <script src="editable-list-picker.js"></script>
@@ -2031,10 +1974,10 @@
   <script src="icloud-manager.js"></script>
   <script src="luckmail-manager.js"></script>
   <script src="custom-email-pool-manager.js"></script>
-  <script src="contribution-mode.js"></script>
   <script src="ip-proxy-provider-711proxy.js"></script>
   <script src="ip-proxy-panel.js"></script>
   <script src="account-records-manager.js"></script>
+  <script src="cpam-reauth.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 

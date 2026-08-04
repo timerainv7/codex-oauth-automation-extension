@@ -36,6 +36,8 @@ importScripts(
   'background/ip-proxy-core.js',
   'background/sub2api-api.js',
   'background/cpa-api.js',
+  'background/cpam-inspection-api.js',
+  'background/cpam-reauth-controller.js',
   'background/panel-bridge.js',
   'background/registration-email-state.js',
   'core/flow-kernel/workflow-engine.js',
@@ -1121,6 +1123,10 @@ const PERSISTED_SETTING_DEFAULTS = {
   codex2apiUrl: DEFAULT_CODEX2API_URL,
   codex2apiAdminKey: '',
   customPassword: '',
+  cpamBaseUrl: '',
+  cpamAccessToken: '',
+  cpamInspectionRunId: '',
+  cpamReauthReplaceOriginalFile: true,
   plusModeEnabled: false,
   plusPaymentMethod: DEFAULT_PLUS_PAYMENT_METHOD,
   accountDeliveryMode: 'oauth',
@@ -1367,6 +1373,18 @@ const DEFAULT_STATE = {
   ipProxyAppliedExitDetecting: false,
   ipProxyAppliedExitError: '',
   ipProxyAppliedExitSource: '',
+  reauthRuntime: {
+    phase: 'idle',
+    queued: 0,
+    currentIndex: -1,
+    currentItem: null,
+    succeeded: 0,
+    failed: 0,
+    skipped: 0,
+    items: [],
+    error: null,
+    runId: null,
+  },
 };
 
 function normalizeAutoRunFallbackThreadIntervalMinutes(value) {
@@ -3153,6 +3171,22 @@ function normalizePersistentSettingValue(key, value) {
       return String(value || '').trim();
     case 'customPassword':
       return String(value || '');
+    case 'cpamBaseUrl': {
+      const normalized = String(value || '').trim();
+      return normalized
+        ? self.MultiPageBackgroundCpamInspectionApi.normalizeBaseUrl(normalized)
+        : '';
+    }
+    case 'cpamAccessToken':
+      return String(value || '').trim();
+    case 'cpamInspectionRunId': {
+      const normalized = String(value || '').trim();
+      return normalized
+        ? self.MultiPageBackgroundCpamInspectionApi.normalizeRunId(normalized)
+        : '';
+    }
+    case 'cpamReauthReplaceOriginalFile':
+      return Boolean(value);
     case 'signupMethod':
       return normalizeSignupMethod(value);
     case 'plusPaymentMethod':
@@ -4014,13 +4048,25 @@ async function getState() {
     getPersistedAliasState(),
     accountRunHistoryHelpers?.getPersistedAccountRunHistory?.() || [],
   ]);
-  return buildStateViewWithRuntimeState({
+  const stateView = buildStateViewWithRuntimeState({
     ...DEFAULT_STATE,
     ...persistedSettings,
     ...persistedAliasState,
     ...state,
     accountRunHistory,
   });
+
+  // The account-contribution path is retired from the registration-only build.
+  // Normalize legacy session data before any workflow reads it so an old setting
+  // cannot redirect a normal registration run to an external contribution flow.
+  return {
+    ...stateView,
+    ...CONTRIBUTION_RUNTIME_DEFAULTS,
+    accountContributionEnabled: false,
+    accountContributionExpected: false,
+    contributionAdapterId: '',
+    flowContributionRuntime: {},
+  };
 }
 
 async function initializeSessionStorageAccess() {
@@ -4087,7 +4133,7 @@ async function migrateLegacyAccountContributionState() {
 }
 
 async function setState(updates) {
-  console.log(LOG_PREFIX, 'storage.set:', JSON.stringify(updates).slice(0, 200));
+  console.log(LOG_PREFIX, 'storage.set:', JSON.stringify(redactCpamAccessTokens(updates)).slice(0, 200));
   if (Object.keys(updates || {}).length > 0) {
     const currentSessionState = await chrome.storage.session.get(null);
     const sessionUpdates = buildStatePatchWithRuntimeState({
@@ -10160,6 +10206,10 @@ function clearStopRequest() {
   stopRequested = false;
 }
 
+function getStopRequested() {
+  return Boolean(stopRequested);
+}
+
 function getRunningNodeIds(statuses = {}, stateOverride = null) {
   const state = stateOverride || {};
   const nodeStatuses = normalizeStatusMapForNodes(statuses, state);
@@ -10729,18 +10779,43 @@ async function broadcastStopToContentScripts() {
 
 let stopRequested = false;
 
+function redactCpamAccessTokens(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactCpamAccessTokens(entry));
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [
+    key,
+    key === 'cpamAccessToken' ? '[REDACTED]' : redactCpamAccessTokens(entry),
+  ]));
+}
+
+function redactCpamErrorMessage(error, accessToken = '') {
+  const message = String(error?.message || error || '');
+  const token = String(accessToken || '').trim();
+  return token ? message.split(token).join('[REDACTED]') : message;
+}
+
+function reportMessageRouterError(error, sendResponse, accessToken = '', logger = console) {
+  const message = redactCpamErrorMessage(error, accessToken);
+  logger.error('Message handler error:', message);
+  sendResponse({ error: message });
+}
+
 // ============================================================
 // Message Handler (central router)
 // ============================================================
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log(LOG_PREFIX, `Received: ${message.type} from ${message.source || 'sidepanel'}`, message);
+  console.log(LOG_PREFIX, `Received: ${message.type} from ${message.source || 'sidepanel'}`, redactCpamAccessTokens(message));
 
   handleMessage(message, sender).then(response => {
     sendResponse(response);
-  }).catch(err => {
-    console.error(LOG_PREFIX, 'Handler error:', err);
-    sendResponse({ error: err.message });
+  }).catch(async (err) => {
+    const state = await getState().catch(() => ({}));
+    reportMessageRouterError(err, sendResponse, state?.cpamAccessToken);
   });
 
   return true; // async response
@@ -14166,6 +14241,33 @@ const stepExecutorsByKey = {
   'grok-start-sub2api-oauth': (state) => grokSub2ApiOAuthRunner.executeGrokStartSub2ApiOAuth(state),
   'grok-complete-sub2api-oauth': (state) => grokSub2ApiOAuthRunner.executeGrokCompleteSub2ApiOAuth(state),
 };
+function createCpamInspectionCandidateLoader(inspectionApiModule) {
+  const inspectionApi = inspectionApiModule?.createCpamInspectionApi?.();
+  return async function getRunCandidates(settings) {
+    if (typeof inspectionApi?.getRunCandidates !== 'function') {
+      throw new Error('CPAM inspection capability is not available.');
+    }
+    return inspectionApi.getRunCandidates(settings);
+  };
+}
+const getCpamRunCandidates = createCpamInspectionCandidateLoader(self.MultiPageBackgroundCpamInspectionApi);
+const cpaAuthFileApi = self.MultiPageBackgroundCpaApi?.createCpaApi?.({ addLog });
+const cpamReauthController = self.MultiPageBackgroundCpamReauthController?.createCpamReauthController?.({
+  chrome,
+  getState,
+  setState,
+  broadcastDataUpdate,
+  executeNode,
+  requestStop,
+  clearStopRequest,
+  getStopRequested,
+  addLog,
+  getRunCandidates: getCpamRunCandidates,
+  listAuthFiles: (...args) => cpaAuthFileApi?.listAuthFiles?.(...args),
+  downloadAuthFile: (...args) => cpaAuthFileApi?.downloadAuthFile?.(...args),
+  overwriteAuthFile: (...args) => cpaAuthFileApi?.overwriteAuthFile?.(...args),
+  deleteAuthFile: (...args) => cpaAuthFileApi?.deleteAuthFile?.(...args),
+});
 const messageRouter = self.MultiPageBackgroundMessageRouter?.createMessageRouter({
   addLog,
   appendAccountRunRecord: (...args) => appendAndBroadcastAccountRunRecord(...args),
@@ -14314,12 +14416,16 @@ const messageRouter = self.MultiPageBackgroundMessageRouter?.createMessageRouter
   setNodeStatus,
   skipAutoRunCountdown,
   skipNode,
+  startCpamReauth: () => cpamReauthController?.start?.(),
+  retryCpamReauthFailed: () => cpamReauthController?.retryFailed?.(),
   startFlowContribution: (...args) => contributionOAuthManager?.startFlowContribution?.(...args),
   startAutoRunLoop,
   pollContributionStatus: (...args) => contributionOAuthManager?.pollContributionStatus?.(...args),
   submitFlowContribution: (...args) => contributionOAuthManager?.submitContributionCallback?.(...args),
   syncHotmailAccounts,
   syncPayPalAccounts,
+  stopCpamReauth: () => cpamReauthController?.stop?.(),
+  deleteCpamReauthDeactivated: () => cpamReauthController?.deleteDeactivated?.(),
   deleteMail2925Account,
   deleteMail2925Accounts,
   testHotmailAccountMailAccess,

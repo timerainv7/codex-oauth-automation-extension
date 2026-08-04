@@ -102,24 +102,11 @@ function createElement(initial = {}) {
   };
 }
 
-test('sidepanel html contains contribution mode runtime UI and loads the module before sidepanel bootstrap', () => {
+test('sidepanel html excludes the retired contribution runtime UI and module', () => {
   const html = fs.readFileSync('sidepanel/sidepanel.html', 'utf8');
-  const moduleIndex = html.indexOf('<script src="contribution-mode.js"></script>');
-  const sidepanelIndex = html.indexOf('<script src="sidepanel.js"></script>');
-
-  assert.match(html, /id="btn-contribution-mode"/);
-  assert.match(html, /id="contribution-mode-panel"/);
-  assert.match(html, /id="contribution-oauth-status"/);
-  assert.match(html, /id="contribution-callback-status"/);
-  assert.match(html, /id="contribution-mode-summary"/);
-  assert.match(html, /id="btn-start-contribution"/);
-  assert.match(html, /id="btn-open-contribution-upload"/);
-  assert.match(html, /id="btn-exit-contribution-mode"/);
-  assert.match(html, /id="input-contribution-nickname"/);
-  assert.match(html, /id="input-contribution-qq"/);
-  assert.notEqual(moduleIndex, -1);
-  assert.notEqual(sidepanelIndex, -1);
-  assert.ok(moduleIndex < sidepanelIndex);
+  assert.doesNotMatch(html, /id="btn-contribution-mode"/);
+  assert.doesNotMatch(html, /id="contribution-mode-panel"/);
+  assert.doesNotMatch(html, /contribution-mode\.js/);
 });
 
 test('sidepanel settings refresh preserves rendered step progress', () => {

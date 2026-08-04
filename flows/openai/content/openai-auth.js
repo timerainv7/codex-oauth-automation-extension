@@ -4497,6 +4497,23 @@ function findLoginMoreOptionsTrigger() {
   }) || null;
 }
 
+const ACCOUNT_DEACTIVATED_ERROR = 'ACCOUNT_DEACTIVATED::账号已被删除或停用（account_deactivated）';
+
+function isAccountDeactivatedPage() {
+  const text = String(document.body?.innerText || document.documentElement?.innerText || '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+  return /\baccount_deactivated\b/.test(text)
+    || /account (?:has been )?(?:deleted|deactivated)|deleted or deactivated/.test(text)
+    || /账户已被删除或停用|账号已被删除或停用/.test(text);
+}
+
+function throwIfAccountDeactivated() {
+  if (isAccountDeactivatedPage()) {
+    throw new Error(ACCOUNT_DEACTIVATED_ERROR);
+  }
+}
+
 function inspectLoginAuthState() {
   const retryState = getLoginTimeoutErrorPageState();
   const verificationTarget = getVerificationCodeTarget();
@@ -4699,6 +4716,7 @@ async function waitForKnownLoginAuthState(timeout = 15000) {
 
   while (Date.now() - start < timeout) {
     throwIfStopped();
+    if (typeof throwIfAccountDeactivated === 'function') throwIfAccountDeactivated();
     snapshot = normalizeStep6Snapshot(inspectLoginAuthState());
     if (snapshot.state !== 'unknown') {
       return snapshot;
@@ -5354,6 +5372,7 @@ async function waitForVerificationSubmitOutcome(step, timeout, options = {}) {
 
   while (Date.now() - start < resolvedTimeout) {
     throwIfStopped();
+    if (typeof throwIfAccountDeactivated === 'function') throwIfAccountDeactivated();
 
     const retryFlow = step === 4 ? 'signup' : 'login';
     const retryState = getCurrentAuthRetryPageState(retryFlow);
@@ -5874,6 +5893,7 @@ async function waitForStep6PostSubmitTransition(options = {}) {
 
   while (Date.now() - start < timeout) {
     throwIfStopped();
+    if (typeof throwIfAccountDeactivated === 'function') throwIfAccountDeactivated();
     snapshot = normalizeStep6Snapshot(inspectLoginAuthState());
     const transition = await resolveStep6PostSubmitSnapshot(snapshot, {
       ...options,
@@ -5886,6 +5906,7 @@ async function waitForStep6PostSubmitTransition(options = {}) {
   }
 
   snapshot = normalizeStep6Snapshot(inspectLoginAuthState());
+  if (typeof throwIfAccountDeactivated === 'function') throwIfAccountDeactivated();
   const transition = await resolveStep6PostSubmitSnapshot(snapshot, {
     ...options,
     final: true,

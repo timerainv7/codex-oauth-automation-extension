@@ -182,8 +182,12 @@
       setNodeStatus,
       skipAutoRunCountdown,
       skipNode,
+      startCpamReauth,
+      retryCpamReauthFailed,
       startFlowContribution,
       startAutoRunLoop,
+      stopCpamReauth,
+      deleteCpamReauthDeactivated,
       deleteMail2925Account,
       deleteMail2925Accounts,
       syncHotmailAccounts,
@@ -2075,6 +2079,37 @@
         case 'STOP_FLOW': {
           await requestStop();
           return { ok: true };
+        }
+
+        case 'START_CPAM_REAUTH': {
+          if (message.source === 'sidepanel') {
+            await lockAutomationWindowFromMessage(message, sender);
+          }
+          if (typeof startCpamReauth !== 'function') {
+            throw new Error('CPAM ReAuth capability is not available.');
+          }
+          return await startCpamReauth();
+        }
+
+        case 'STOP_CPAM_REAUTH': {
+          if (typeof stopCpamReauth !== 'function') {
+            throw new Error('CPAM ReAuth capability is not available.');
+          }
+          return await stopCpamReauth();
+        }
+
+        case 'RETRY_CPAM_REAUTH_FAILED': {
+          if (typeof retryCpamReauthFailed !== 'function') {
+            throw new Error('CPAM ReAuth retry capability is not available.');
+          }
+          return await retryCpamReauthFailed();
+        }
+
+        case 'DELETE_CPAM_REAUTH_DEACTIVATED': {
+          if (typeof deleteCpamReauthDeactivated !== 'function') {
+            throw new Error('CPAM ReAuth deletion capability is not available.');
+          }
+          return await deleteCpamReauthDeactivated();
         }
 
         default:

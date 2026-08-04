@@ -43,7 +43,6 @@ test('sidepanel html exposes flow selector and kiro source fields', () => {
     'id="select-flow"',
     '<option value="grok">Grok</option>',
     'id="label-source-selector"',
-    'id="btn-open-target-repository"',
     'id="row-account-delivery-mode"',
     'id="select-account-delivery-mode"',
     'id="account-delivery-mode-caption"',
@@ -97,12 +96,7 @@ test('sidepanel html exposes flow selector and kiro source fields', () => {
   assert.doesNotMatch(sidepanelHtml, /row-plus-account-access-strategy/);
   assert.doesNotMatch(sidepanelHtml, /select-plus-account-access-strategy/);
   assert.doesNotMatch(sidepanelHtml, /plus-account-access-strategy-caption/);
-  assert.match(
-    sidepanelHtml,
-    /id="btn-open-target-repository"[^>]*class="btn btn-outline btn-sm data-inline-btn"[^>]*>GitHub<\/button>/
-  );
-  const repositoryButtonTag = sidepanelHtml.match(/<button[^>]*id="btn-open-target-repository"[\s\S]*?<\/button>/)?.[0] || '';
-  assert.doesNotMatch(repositoryButtonTag, /<svg/);
+  assert.doesNotMatch(sidepanelHtml, /id="btn-open-target-repository"/);
   assert.ok(
     sidepanelHtml.indexOf('<script src="../flows/kiro/workflow.js"></script>')
       < sidepanelHtml.indexOf('<script src="../flows/grok/index.js"></script>')
@@ -114,10 +108,6 @@ test('sidepanel html exposes flow selector and kiro source fields', () => {
   assert.ok(
     sidepanelHtml.indexOf('id="row-source-selector"')
       < sidepanelHtml.indexOf('id="row-account-delivery-mode"')
-  );
-  assert.ok(
-    sidepanelHtml.indexOf('id="row-account-delivery-mode"')
-      < sidepanelHtml.indexOf('id="contribution-mode-panel"')
   );
   assert.ok(
     sidepanelHtml.indexOf('<script src="account-delivery-control.js"></script>')

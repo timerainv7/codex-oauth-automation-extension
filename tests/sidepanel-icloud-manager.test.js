@@ -19,17 +19,12 @@ test('sidepanel source binds the icloud fetch mode control before using it', () 
   assert.match(source, /selectIcloudFetchMode\?\.addEventListener\('change'/);
 });
 
-test('update card highlights exporting config before upgrade', () => {
+test('registration-only sidepanel excludes the update promotion card', () => {
   const html = fs.readFileSync('sidepanel/sidepanel.html', 'utf8');
-  const css = fs.readFileSync('sidepanel/sidepanel.css', 'utf8');
 
-  assert.match(html, /id="btn-ignore-release"/);
-  assert.match(html, /class="update-card-actions"/);
-  assert.match(css, /\.update-card-actions\s*\{/);
-  assert.match(html, /<p class="update-card-reminder">一定请先导出配置，再执行更新<\/p>/);
-  assert.match(css, /\.update-card-reminder\s*\{/);
-  assert.match(css, /font-weight:\s*700;/);
-  assert.match(css, /color:\s*var\(--orange\);/);
+  assert.doesNotMatch(html, /id="update-section"/);
+  assert.doesNotMatch(html, /id="btn-ignore-release"/);
+  assert.doesNotMatch(html, /class="update-card-actions"/);
 });
 
 test('icloud manager exposes a factory and renders empty state', () => {

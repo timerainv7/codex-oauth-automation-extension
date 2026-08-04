@@ -56,6 +56,16 @@ const statusBar = document.getElementById('status-bar');
 const inputEmail = document.getElementById('input-email');
 const inputSignupPhone = document.getElementById('input-signup-phone');
 const inputPassword = document.getElementById('input-password');
+const inputCpamBaseUrl = document.getElementById('input-cpam-base-url');
+const inputCpamAccessToken = document.getElementById('input-cpam-access-token');
+const inputCpamInspectionRunId = document.getElementById('input-cpam-inspection-run-id');
+const inputCpamReauthReplaceOriginalFile = document.getElementById('input-cpam-reauth-replace-original-file');
+const btnStartCpamReauth = document.getElementById('btn-start-cpam-reauth');
+const btnStopCpamReauth = document.getElementById('btn-stop-cpam-reauth');
+const btnRetryCpamReauth = document.getElementById('btn-retry-cpam-reauth');
+const btnDeleteCpamReauthDeactivated = document.getElementById('btn-delete-cpam-reauth-deactivated');
+const cpamReauthSummary = document.getElementById('cpam-reauth-summary');
+const cpamReauthResults = document.getElementById('cpam-reauth-results');
 const btnToggleVpsUrl = document.getElementById('btn-toggle-vps-url');
 const btnToggleVpsPassword = document.getElementById('btn-toggle-vps-password');
 const btnFetchEmail = document.getElementById('btn-fetch-email');
@@ -5454,6 +5464,9 @@ function collectSettingsPayload() {
       return Math.min(120, Math.max(0, Math.floor(numeric)));
     });
   return {
+    ...((typeof cpamReauthPanel !== 'undefined' && cpamReauthPanel
+      ? cpamReauthPanel.collectSettings?.()
+      : {}) || {}),
     uiLanguage: safeUiLanguage,
     activeFlowId,
     targetId: effectiveTargetId,
@@ -11848,6 +11861,35 @@ function syncStepDefinitionsFromUiState(stateOverrides = {}) {
   return stepDefinitionState;
 }
 
+const cpamReauthPanel = window.SidepanelCpamReauth?.createCpamReauthPanel?.({
+  dom: {
+    inputBaseUrl: inputCpamBaseUrl,
+    inputAccessToken: inputCpamAccessToken,
+    inputInspectionRunId: inputCpamInspectionRunId,
+    inputReplaceOriginalFile: inputCpamReauthReplaceOriginalFile,
+    btnStart: btnStartCpamReauth,
+    btnStop: btnStopCpamReauth,
+    btnRetry: btnRetryCpamReauth,
+    btnDeleteDeactivated: btnDeleteCpamReauthDeactivated,
+    summary: cpamReauthSummary,
+    results: cpamReauthResults,
+  },
+  runtime: chrome.runtime,
+  helpers: {
+    confirmDeleteDeactivated: async (count) => openConfirmModal({
+      title: '删除已停用账户',
+      message: `确认删除本次 ReAuth 中已停用的 ${count} 个 CPA 认证文件吗？此操作不可恢复。`,
+      confirmLabel: '确认删除',
+      confirmVariant: 'btn-danger',
+    }),
+    saveSettings: () => {
+      markSettingsDirty(true);
+      return saveSettings({ silent: true, force: true, source: 'cpam-reauth' });
+    },
+  },
+}) || null;
+cpamReauthPanel?.bindEvents?.();
+
 // ============================================================
 // State Restore on load
 // ============================================================
@@ -11924,6 +11966,10 @@ function applySettingsState(state) {
     return Math.max(1, Math.min(1440, numeric));
   };
   syncLatestState(state);
+  if (typeof cpamReauthPanel !== 'undefined' && cpamReauthPanel) {
+    cpamReauthPanel.applySettings?.(state);
+    cpamReauthPanel.render?.(state?.reauthRuntime);
+  }
   const defaultActiveFlowId = typeof DEFAULT_ACTIVE_FLOW_ID === 'string' ? DEFAULT_ACTIVE_FLOW_ID : 'openai';
   const appliedFlowSelection = typeof syncFlowSelectorsFromState === 'function'
     ? syncFlowSelectorsFromState(state)
@@ -18874,6 +18920,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         selectedTargetIdBeforeUpdate
       );
       syncLatestState(message.payload);
+      if (
+        message.payload.reauthRuntime !== undefined
+        && typeof cpamReauthPanel !== 'undefined'
+        && cpamReauthPanel
+      ) {
+        cpamReauthPanel?.render?.(message.payload.reauthRuntime);
+      }
       const activeSettingsEditor = typeof document !== 'undefined' ? document.activeElement : null;
       const shouldDeferDataUpdatedUiApply = settingsSaveInFlight
         && isEditableElementInSettingsCard(activeSettingsEditor);

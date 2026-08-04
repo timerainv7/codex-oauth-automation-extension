@@ -88,6 +88,24 @@ test('sidepanel static i18n translates account delivery metadata', () => {
   );
 });
 
+test('sidepanel static i18n translates optional CPAM ReAuth run ID copy', () => {
+  const i18n = loadSidepanelStaticI18n();
+
+  assert.equal(i18n.translateValue('\u68c0\u67e5\u8fd0\u884c ID\uff08\u53ef\u9009\uff09', 'en-US'), 'Inspection Run ID (Optional)');
+  assert.equal(
+    i18n.translateValue('\u7559\u7a7a\u81ea\u52a8\u4f7f\u7528\u6700\u65b0\u5df2\u5b8c\u6210\u5de1\u68c0', 'en-US'),
+    'Leave blank to automatically use the latest completed inspection'
+  );
+  assert.equal(
+    i18n.translateValue('\u8bf7\u586b\u5199 CPAM \u5730\u5740\u548c\u8bbf\u95ee\u4ee4\u724c\u3002', 'en-US'),
+    'Please enter the CPAM URL and access token.'
+  );
+  assert.equal(
+    i18n.translateValue('CPAM \u6ca1\u6709\u53ef\u7528\u7684\u5df2\u5b8c\u6210\u5de1\u68c0\u8fd0\u884c\u3002', 'en-US'),
+    'No completed CPAM inspection run is available.'
+  );
+});
+
 test('sidepanel static i18n translates dynamic user-facing patterns', () => {
   const i18n = loadSidepanelStaticI18n();
 

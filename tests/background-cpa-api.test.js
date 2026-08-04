@@ -182,3 +182,45 @@ test('cpa api preserves provided id_token and refresh_token when available', () 
   assert.equal(result.authJson.session_token, 'session-token-1');
   assert.equal(result.hasRefreshToken, true);
 });
+
+test('cpa api manages individual auth files with CPA management authentication', async () => {
+  const apiModule = loadCpaApiModule();
+  const calls = [];
+  const api = apiModule.createCpaApi({
+    fetchImpl: async (url, options = {}) => {
+      const parsed = new URL(url);
+      calls.push({
+        path: parsed.pathname,
+        search: parsed.search,
+        method: options.method || 'POST',
+        headers: options.headers,
+        body: options.body ? JSON.parse(options.body) : null,
+      });
+      if (parsed.pathname.endsWith('/download')) {
+        return createJsonResponse({ type: 'codex', email: 'reauth@example.test' });
+      }
+      if (options.method === 'GET') {
+        return createJsonResponse({ files: [{ name: 'old.json' }] });
+      }
+      return createJsonResponse({ status: 'ok' });
+    },
+  });
+  const state = { vpsUrl: 'https://cpa.example.test/management.html', vpsPassword: 'management-key' };
+
+  assert.deepEqual(await api.listAuthFiles(state), [{ name: 'old.json' }]);
+  assert.deepEqual(await api.downloadAuthFile(state, 'new.json'), { type: 'codex', email: 'reauth@example.test' });
+  await api.overwriteAuthFile(state, 'old.json', { type: 'codex', email: 'reauth@example.test' });
+  await api.deleteAuthFile(state, 'old.json');
+
+  assert.deepEqual(calls.map(({ path, search, method }) => ({ path, search, method })), [
+    { path: '/v0/management/auth-files', search: '', method: 'GET' },
+    { path: '/v0/management/auth-files/download', search: '?name=new.json', method: 'GET' },
+    { path: '/v0/management/auth-files', search: '?name=old.json', method: 'POST' },
+    { path: '/v0/management/auth-files', search: '?name=old.json', method: 'DELETE' },
+  ]);
+  calls.forEach((call) => {
+    assert.equal(call.headers.Authorization, 'Bearer management-key');
+    assert.equal(call.headers['X-Management-Key'], 'management-key');
+  });
+  assert.deepEqual(calls[2].body, { type: 'codex', email: 'reauth@example.test' });
+});
