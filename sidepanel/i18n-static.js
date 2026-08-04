@@ -158,6 +158,7 @@
     '\u6e05\u7406\u8bb0\u5f55': 'Clear Records',
     '\u8bf7\u5148\u66f4\u65b0\u57df\u540d': 'Please update domain first',
     '\u8bf7\u586b\u5199 CPAM \u5730\u5740\u548c\u8bbf\u95ee\u4ee4\u724c\u3002': 'Please enter the CPAM URL and access token.',
+    'CPAM \u6ca1\u6709\u53ef\u7528\u7684\u5df2\u5b8c\u6210\u5de1\u68c0\u8fd0\u884c\u3002': 'No completed CPAM inspection run is available.',
     '\u8bf7\u5148\u6dfb\u52a0 PayPal \u8d26\u53f7': 'Please add a PayPal account first',
     '\u8bf7\u5148\u6dfb\u52a0\u57df\u540d': 'Please add a domain first',
     '\u8bf7\u9009\u62e9\u53f7\u6c60\u90ae\u7bb1': 'Please select a pool email',

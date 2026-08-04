@@ -100,6 +100,10 @@ test('sidepanel static i18n translates optional CPAM ReAuth run ID copy', () => 
     i18n.translateValue('\u8bf7\u586b\u5199 CPAM \u5730\u5740\u548c\u8bbf\u95ee\u4ee4\u724c\u3002', 'en-US'),
     'Please enter the CPAM URL and access token.'
   );
+  assert.equal(
+    i18n.translateValue('CPAM \u6ca1\u6709\u53ef\u7528\u7684\u5df2\u5b8c\u6210\u5de1\u68c0\u8fd0\u884c\u3002', 'en-US'),
+    'No completed CPAM inspection run is available.'
+  );
 });
 
 test('sidepanel static i18n translates dynamic user-facing patterns', () => {
