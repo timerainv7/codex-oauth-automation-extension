@@ -239,6 +239,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   cpamBaseUrl: '',
   cpamAccessToken: '',
   cpamInspectionRunId: '',
+  cpamReauthReplaceOriginalFile: true,
 };
 const PERSISTED_SETTING_KEYS = Object.keys(PERSISTED_SETTING_DEFAULTS);
 function getSettingsSchemaApi() { return null; }
@@ -276,6 +277,9 @@ return { buildPersistentSettingsPayload };
     cpamInspectionRunId: '',
   });
   assert.deepEqual(normalizedRunIds, ['42']);
+  assert.deepEqual(api.buildPersistentSettingsPayload({ cpamReauthReplaceOriginalFile: false }), {
+    cpamReauthReplaceOriginalFile: false,
+  });
 });
 
 test('setState diagnostics redact CPAM access tokens before logging updates', async () => {
@@ -389,11 +393,17 @@ test('background wires CPAM modules, settings normalizers, runtime state, and ro
   assert.match(source, /cpamBaseUrl:\s*'',/);
   assert.match(source, /cpamAccessToken:\s*'',/);
   assert.match(source, /cpamInspectionRunId:\s*'',/);
+  assert.match(source, /cpamReauthReplaceOriginalFile:\s*true,/);
   assert.match(source, /case 'cpamBaseUrl':[\s\S]*?normalizeBaseUrl/);
   assert.match(source, /case 'cpamAccessToken':[\s\S]*?String\(value \|\| ''\)\.trim\(\)/);
   assert.match(source, /case 'cpamInspectionRunId':[\s\S]*?normalizeRunId/);
+  assert.match(source, /case 'cpamReauthReplaceOriginalFile':[\s\S]*?Boolean\(value\)/);
   assert.match(source, /reauthRuntime:\s*\{[\s\S]*?phase:\s*'idle'/);
   assert.match(source, /const cpamReauthController = self\.MultiPageBackgroundCpamReauthController\?\.createCpamReauthController\?\.\(\{/);
+  assert.match(source, /listAuthFiles:/);
+  assert.match(source, /downloadAuthFile:/);
+  assert.match(source, /overwriteAuthFile:/);
+  assert.match(source, /deleteAuthFile:/);
   assert.match(source, /startCpamReauth:\s*\(\) => cpamReauthController\?\.start\?\.\(\)/);
   assert.match(source, /stopCpamReauth:\s*\(\) => cpamReauthController\?\.stop\?\.\(\)/);
 });

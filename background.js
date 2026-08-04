@@ -1126,6 +1126,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   cpamBaseUrl: '',
   cpamAccessToken: '',
   cpamInspectionRunId: '',
+  cpamReauthReplaceOriginalFile: true,
   plusModeEnabled: false,
   plusPaymentMethod: DEFAULT_PLUS_PAYMENT_METHOD,
   accountDeliveryMode: 'oauth',
@@ -3184,6 +3185,8 @@ function normalizePersistentSettingValue(key, value) {
         ? self.MultiPageBackgroundCpamInspectionApi.normalizeRunId(normalized)
         : '';
     }
+    case 'cpamReauthReplaceOriginalFile':
+      return Boolean(value);
     case 'signupMethod':
       return normalizeSignupMethod(value);
     case 'plusPaymentMethod':
@@ -14248,6 +14251,7 @@ function createCpamInspectionCandidateLoader(inspectionApiModule) {
   };
 }
 const getCpamRunCandidates = createCpamInspectionCandidateLoader(self.MultiPageBackgroundCpamInspectionApi);
+const cpaAuthFileApi = self.MultiPageBackgroundCpaApi?.createCpaApi?.({ addLog });
 const cpamReauthController = self.MultiPageBackgroundCpamReauthController?.createCpamReauthController?.({
   chrome,
   getState,
@@ -14259,6 +14263,10 @@ const cpamReauthController = self.MultiPageBackgroundCpamReauthController?.creat
   getStopRequested,
   addLog,
   getRunCandidates: getCpamRunCandidates,
+  listAuthFiles: (...args) => cpaAuthFileApi?.listAuthFiles?.(...args),
+  downloadAuthFile: (...args) => cpaAuthFileApi?.downloadAuthFile?.(...args),
+  overwriteAuthFile: (...args) => cpaAuthFileApi?.overwriteAuthFile?.(...args),
+  deleteAuthFile: (...args) => cpaAuthFileApi?.deleteAuthFile?.(...args),
 });
 const messageRouter = self.MultiPageBackgroundMessageRouter?.createMessageRouter({
   addLog,
