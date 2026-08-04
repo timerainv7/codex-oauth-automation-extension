@@ -66,6 +66,65 @@ test('getRunCandidates requests the normalized manual run with only the CPAM bea
   }]);
 });
 
+test('getRunCandidates selects the first completed run when no run ID is supplied', async () => {
+  const requests = [];
+  const api = createCpamInspectionApi({
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options });
+      if (url.endsWith('/runs?limit=20')) {
+        return jsonResponse({
+          items: [
+            { id: 48, status: 'running' },
+            { id: 47, status: 'completed' },
+          ],
+        });
+      }
+      return jsonResponse({ run: { id: 47 }, results: [] });
+    },
+  });
+
+  const result = await api.getRunCandidates(validSettings({ cpamInspectionRunId: '' }));
+
+  assert.deepEqual(requests.map(({ url }) => url), [
+    'https://cpam.example.test/v0/management/codex-inspection/runs?limit=20',
+    'https://cpam.example.test/v0/management/codex-inspection/runs/47',
+  ]);
+  assert.equal(result.run.id, 47);
+  assert.deepEqual(requests.map(({ options }) => options), [
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer test-cpam-access-token',
+      },
+    },
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer test-cpam-access-token',
+      },
+    },
+  ]);
+});
+
+test('getRunCandidates rejects blank run ID when no usable completed run is available', async () => {
+  const api = createCpamInspectionApi({
+    fetchImpl: async () => jsonResponse({
+      items: [
+        { id: 48, status: 'running' },
+        { id: 0, status: 'completed' },
+        { id: 'invalid', status: 'completed' },
+      ],
+    }),
+  });
+
+  await assert.rejects(
+    () => api.getRunCandidates(validSettings({ cpamInspectionRunId: '   ' })),
+    /没有可用的已完成巡检/
+  );
+});
+
 test('getRunCandidates preserves result order and deduplicates codex 401 reauth entries', async () => {
   const api = createCpamInspectionApi({
     fetchImpl: async () => jsonResponse({
@@ -139,4 +198,22 @@ test('getRunCandidates validates settings and CPAM responses', async () => {
     candidates: [],
     skipped: [{ position: 0, reason: 'invalid_email' }],
   });
+});
+
+test('getRunCandidates rejects malformed automatic-run lists', async () => {
+  for (const payload of [
+    { items: 'invalid' },
+    { items: [] },
+    { items: [{ id: 0, status: 'completed' }] },
+    { items: [{ id: 'invalid', status: 'completed' }] },
+  ]) {
+    const api = createCpamInspectionApi({
+      fetchImpl: async () => jsonResponse(payload),
+    });
+
+    await assert.rejects(
+      () => api.getRunCandidates(validSettings({ cpamInspectionRunId: '' })),
+      /没有可用的已完成巡检/
+    );
+  }
 });

@@ -57,16 +57,9 @@
   function createCpamInspectionApi(deps = {}) {
     const fetchImpl = deps.fetchImpl || ((...args) => fetch(...args));
 
-    async function getRunCandidates(settings = {}) {
-      const token = normalizeString(settings.cpamAccessToken);
-      if (!token) {
-        throw new Error('请填写 CPAM 访问令牌。');
-      }
-
-      const baseUrl = normalizeBaseUrl(settings.cpamBaseUrl);
-      const runId = normalizeRunId(settings.cpamInspectionRunId);
+    async function requestJson(path, token) {
       const response = await fetchImpl(
-        `${baseUrl}/v0/management/codex-inspection/runs/${runId}`,
+        path,
         {
           method: 'GET',
           headers: {
@@ -80,6 +73,44 @@
       if (!response.ok) {
         throw new Error(String(payload?.message || payload?.error || `CPAM 请求失败（HTTP ${response.status}）`));
       }
+      return payload;
+    }
+
+    async function resolveRunId(baseUrl, token, rawRunId) {
+      const suppliedRunId = normalizeString(rawRunId);
+      if (suppliedRunId) {
+        return normalizeRunId(suppliedRunId);
+      }
+
+      const listPayload = await requestJson(
+        `${baseUrl}/v0/management/codex-inspection/runs?limit=20`,
+        token
+      );
+      const latestCompleted = Array.isArray(listPayload?.items)
+        ? listPayload.items.find((item) => {
+          const id = String(item?.id || '');
+          return item?.status === 'completed' && /^\d+$/.test(id) && /[1-9]/.test(id);
+        })
+        : null;
+
+      if (!latestCompleted) {
+        throw new Error('CPAM 没有可用的已完成巡检运行。');
+      }
+      return normalizeRunId(latestCompleted.id);
+    }
+
+    async function getRunCandidates(settings = {}) {
+      const token = normalizeString(settings.cpamAccessToken);
+      if (!token) {
+        throw new Error('请填写 CPAM 访问令牌。');
+      }
+
+      const baseUrl = normalizeBaseUrl(settings.cpamBaseUrl);
+      const runId = await resolveRunId(baseUrl, token, settings.cpamInspectionRunId);
+      const payload = await requestJson(
+        `${baseUrl}/v0/management/codex-inspection/runs/${runId}`,
+        token
+      );
       if (!Array.isArray(payload?.results)) {
         throw new Error('CPAM 巡检响应缺少 results 数组。');
       }
