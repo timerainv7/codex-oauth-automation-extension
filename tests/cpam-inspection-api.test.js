@@ -217,3 +217,23 @@ test('getRunCandidates rejects malformed automatic-run lists', async () => {
     );
   }
 });
+
+test('getRunCandidates rejects non-scalar automatic run IDs without requesting details', async () => {
+  for (const id of [[47], { value: 47 }]) {
+    const requests = [];
+    const api = createCpamInspectionApi({
+      fetchImpl: async (url) => {
+        requests.push(url);
+        return jsonResponse({ items: [{ id, status: 'completed' }] });
+      },
+    });
+
+    await assert.rejects(
+      () => api.getRunCandidates(validSettings({ cpamInspectionRunId: '' })),
+      /没有可用的已完成巡检/
+    );
+    assert.deepEqual(requests, [
+      'https://cpam.example.test/v0/management/codex-inspection/runs?limit=20',
+    ]);
+  }
+});

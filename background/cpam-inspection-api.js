@@ -88,8 +88,11 @@
       );
       const latestCompleted = Array.isArray(listPayload?.items)
         ? listPayload.items.find((item) => {
-          const id = String(item?.id || '');
-          return item?.status === 'completed' && /^\d+$/.test(id) && /[1-9]/.test(id);
+          const id = item?.id;
+          return item?.status === 'completed'
+            && ['string', 'number'].includes(typeof id)
+            && /^\d+$/.test(String(id))
+            && /[1-9]/.test(String(id));
         })
         : null;
 
