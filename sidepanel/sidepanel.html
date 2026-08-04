@@ -1793,10 +1793,11 @@
         <input id="input-cpam-access-token" class="data-input" type="password" autocomplete="off" />
       </div>
       <div class="data-row">
-        <span class="data-label">检查运行 ID（可选）</span>
+        <label class="data-label" for="input-cpam-inspection-run-id">检查运行 ID（可选）</label>
         <div class="setting-field-stack">
-          <input id="input-cpam-inspection-run-id" class="data-input" type="number" min="1" step="1" />
-          <span class="setting-caption">留空自动使用最新已完成巡检</span>
+          <input id="input-cpam-inspection-run-id" class="data-input" type="number" min="1" step="1"
+            aria-describedby="cpam-inspection-run-id-caption" />
+          <span id="cpam-inspection-run-id-caption" class="setting-caption">留空自动使用最新已完成巡检</span>
         </div>
       </div>
       <div class="data-row cpam-reauth-actions">

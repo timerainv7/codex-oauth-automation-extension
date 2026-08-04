@@ -403,8 +403,10 @@ test('CPAM ReAuth markup and sidepanel integration expose no external link and a
   assert.match(card, /id="input-cpam-base-url"[^>]*type="url"/);
   assert.match(card, /id="input-cpam-base-url"[^>]*autocomplete="off"/);
   assert.match(card, /id="input-cpam-access-token"[^>]*type="password"/);
+  assert.match(card, /<label class="data-label" for="input-cpam-inspection-run-id">/);
   assert.match(card, /检查运行 ID（可选）/);
-  assert.match(card, /id="input-cpam-inspection-run-id"[^>]*type="number"[^>]*min="1"[^>]*step="1"/);
+  assert.match(card, /id="input-cpam-inspection-run-id"[^>]*type="number"[^>]*min="1"[^>]*step="1"[^>]*aria-describedby="cpam-inspection-run-id-caption"/);
+  assert.match(card, /<span id="cpam-inspection-run-id-caption" class="setting-caption">/);
   assert.ok(
     card.indexOf('id="input-cpam-inspection-run-id"') < card.indexOf('留空自动使用最新已完成巡检'),
     'the automatic-selection caption should follow the inspection run ID field'
